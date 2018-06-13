@@ -1,0 +1,331 @@
+<!doctype HTML>
+<html>
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="js/webpd-latest.min.js"></script>
+    <script>
+        var frequency = 231;
+        var patch
+        $.get('fmSynth/finalPatch4.pd', function(patchStr) {
+          patch = Pd.loadPatch(patchStr)
+          Pd.start();
+        })
+    </script>
+  </head>
+<table>
+
+<tr>
+<td><canvas id=canvas1 width=600 height=400></td>
+<td width=50></td>
+<td valign=top>
+<big><b>
+  Oscillations
+</b></big>
+<h3>Keyian Vafai</h3>
+<p>For our project, we wanted to explore the relationship between graphics and sound.
+We used the open source visual programming language "Pure Data" (or Pd) and "connected" this to our graphics using the javascript library "WebPd".
+<br>
+<br>
+First, to discuss the graphics. We created an interface that allows a user to "draw" using Hermite curves. Every three to seven seconds (the interval is continually randomly decided), or once a user has drawn 150 curves, data on the drawing is accumulated to inform the creation of a (randomly-chosen) sphere or torus. The distance drawn decides the size and precision of the shape. The region most clicked on (divided between four quadrants) determines where the shape will appear. The rotation of the shape is decided by the amount of curves&mdash; between 0 and 50 curves means the shape will rotate along the X axis; between 51 and 100 means Y axis rotation, and above that indicates Z axis rotation. Finally, the average distance per curve drawn in the iteration determines the rate at which the shape will sinusoidally oscillate along the z axis. Once ten shapes are set, every new shape replaces the oldest shape in the set.
+<br>
+<br>
+Now, to discuss the origin of the sounds the user is hearing. For this project, we created a frequency-modulating synthesizer (or an FM synth, as they are often called) with 10 voices as well as a subtractive synthesizer with another ten voices. As we know, for the implementation of Hermite curves that our class uses, each curve is drawn onto the canvas with twenty-one component lines. For every other line, the distance and midpoint is recorded. The distance informs the frequency of a note played on the FM synthesizer, while the x-coordinate of the midpoint decides that note's harmonic index, and the y-coordinate of the midpoint decides that note's harmonic ratio. The interval between each of these notes is set by the distance of the curve being created, resulting in diverse chord-spacings, temporally speaking. The ten voices of the subtractive synthesizer are harmonics of a fundamental frequency. This fundamental frequency is a measured average of each note played by the synthesizer. The amplitude of each voice is continuously set by the size of the correlated shape. Once ten shapes have been created, wavering harmonies of subtracted noise fill the sound and contrast with the more punctuated FM synth.
+
+<br><br>
+For more info on Pure Data click <a target="_blank" href="https://puredata.info/">here</a>. Notably, this year's "PdCon" was actually held at NYU and Keyian attended. :-).</p>
+</td>
+</tr>
+
+</table>
+
+<script src=drawlib2.js></script>
+<script src=M.js></script>
+<script src=S.js></script>
+<script>
+   var m = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];
+
+   var Hermite = [ 2,-3,0,1,  -2,3,0,0,  1,-2,1,0,  1,-1,0,0 ];
+
+   function cubic(A, t) { return A[0] * t*t*t + A[1] * t*t + A[2] * t + A[3]; }
+
+   var clicks = [[0,0,0]];
+
+   var clickCount = 0;
+
+   var nuClickCount = 0;
+
+   var date = new Date();
+
+   var totalDist = 0;
+
+   var curveCount = 0;
+
+   var quad1Count = 0;
+
+   var quad2Count = 0;
+
+   var quad3Count = 0;
+
+   var quad4Count = 0;
+
+   var shapes = [];
+
+   var fundFreq = 0;
+
+   var shapeFuncs = [S.sphere, S.torusGeller]
+
+
+  canvas1.update = function(g) {
+     var newDate = new Date();
+
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      g.lineWidth = 1;
+
+      // OUTLINE THE CANVAS
+
+      g.beginPath();
+      g.moveTo(0,0);
+      g.lineTo(this.width,0);
+      g.lineTo(this.width,this.height);
+      g.lineTo(0,this.height);
+      g.lineTo(0,0);
+      g.stroke();
+
+      var P = [
+
+	      ];
+      var R = [
+
+
+              ];
+
+
+      if(this.cursor.z == 1) {
+        // frequency++;
+        // Pd.send("freq", [frequency]);
+
+        if((clicks[clicks.length-1][0] != this.cursor.x) && (clicks[clicks.length-1][1] != this.cursor.y)){
+          // clicks.push([(this.cursor.x/600)*2-1, -((this.cursor.y/400)*2-1), 0]);
+
+          clicks.push([this.cursor.x, this.cursor.y, 0]);
+          nuClickCount++;
+          curveCount++;
+          addQuadrant(this.cursor.x, this.cursor.y);
+        }
+      }
+
+    let elapsedTime = Math.random()*4000+3000;
+    //conversion needs to happen
+    if (((newDate.getTime()-date.getTime())>elapsedTime) || (curveCount > 150)) {
+      date = new Date();
+      if(totalDist > .5) {
+        shapeTime.call(this,M, m);
+      }
+    }
+
+      for(let i=0; i<clicks.length; i++) {
+        P.push([(clicks[i][0]/600)*2-1, -((clicks[i][1]/400)*2-1), 0]);
+        R.push([(clicks[i][0]/600)*2-1, -((clicks[i][1]/400)*2-1), 0]);
+      }
+
+
+
+      M.identity(m);
+      M.save(m);
+
+        //  M.rotateY(m, Math.PI/4);
+
+         var curves = [];
+         // this is where the curves will be drawn, so best to know curve amount beforehand...
+         for (var n = 0 ; n < P.length-1 ; n++) {
+            var X = M.transform(Hermite, [ P[n][0], P[n+1][0], R[n][0], R[n+1][0] ]);
+            var Y = M.transform(Hermite, [ P[n][1], P[n+1][1], R[n][1], R[n+1][1] ]);
+            var Z = M.transform(Hermite, [ P[n][2], P[n+1][2], R[n][2], R[n+1][2] ]);
+
+            var curve = [];
+            let count = 0;
+            let curveDist= 0;
+            for (var t = 0 ; t < 1.0001 ; t += 1/20) {
+               curve.push( [ cubic(X, t), cubic(Y, t), cubic(Z, t) ] );
+               count++;
+
+               if((n==P.length-2) && (nuClickCount!=clickCount) && (count>1) && (count%2==0)) {
+                  let cords1 = curve[curve.length-1];
+                  let cords2 = curve[curve.length-2];
+
+                  let x1 = cords1[0];
+                  let y1 = cords1[1];
+                  let x2 = cords2[0];
+                  let y2 = cords2[1];
+
+                  let midX = (Math.ceil(Math.abs((x1+x2)/2))* 20)/4;
+                  let midY = (Math.ceil(Math.abs((y1+y2)/2))* 20)/4;
+
+                  let dist = Math.sqrt(((x2-x1)*(x2-x1)) + ((y2-y1)*(y2-y1)));
+                  totalDist += dist;
+                  curveDist += dist;
+                  dist *= 7000;
+                  dist = Math.floor(dist);
+
+                  let whichFreq = "freq"+((count/2)+1);
+                  let arpeggiationInterval = curveDist*50+10;
+                  Pd.send("hi", [midX]);
+                  Pd.send("hr", [midY]);
+                  Pd.send(whichFreq, [dist, arpeggiationInterval*count]);
+
+               }
+             }
+
+            curves.push(curve);
+
+         }
+         clickCount = nuClickCount;
+
+
+         this.drawCurves(m, curves );
+
+      M.restore(m);
+
+      makeTorus.call(this);
+
+      function makeTorus() {
+        for(var i=0; i< shapes.length; i++){
+          let dist = shapes[i][0];
+          let curvs = shapes[i][1];
+          let quad = shapes[i][2];
+          let func = shapes[i][3];
+
+          let transX = .7*Math.random();
+          let transY = .5*Math.random();
+
+          if( Object.prototype.toString.call( quad ) === '[object Array]' ) {
+            transX = quad[0];
+            transY = quad[1];
+          } else {
+            if (quad == 1) {
+              transX *= -1;
+            } else if (quad == 2) {
+              transX *= -1;
+              transY *= -1;
+            } else if (quad == 3) {
+              transY*= -1;
+            }
+
+            shapes[i][2] = [transX, transY];
+          }
+
+          let curvFunc = 0;
+          if(curvs<51) {
+            curvFunc = M.rotateX.bind(this);
+          } else if (curvs < 101) {
+            curvFunc = M.rotateY.bind(this);
+          } else {
+            curvFunc = M.rotateZ.bind(this);
+          }
+
+          M.save(m);
+          // DRAW torus.
+            //set rotation of torus
+             M.translate(m, [transX, transY, Math.sin((4*dist/curvs)*time)])
+             curvFunc(m, time);
+             M.scale(m,  (dist)/50);
+             let prec = Math.floor(dist);
+             if(prec < 5) {
+               prec = 5;
+             }
+
+             this.drawCurves(m, S.parametricMesh(func, prec, prec));
+          M.restore(m);
+        }
+      }
+
+      function shapeTime() {
+        // DRAW torus.
+
+        let shapeFunc = shapeFuncs[Math.floor(Math.random()*2)];
+
+        let qCs = [quad1Count, quad2Count, quad3Count, quad4Count];
+        let quadNum = qCs.indexOf(Math.max.apply(null, qCs));
+
+        fundFreq *= shapes.length;
+
+        fundFreq += totalDist/(curveCount*11);
+
+        shapes.push([totalDist, curveCount, quadNum, shapeFunc]);
+
+        fundFreq /= shapes.length;
+
+        if(shapes.length > 10) {
+          shapes.shift();
+        }
+
+        adjustSubSynth();
+        //reset everything
+        totalDist = 0;
+        curveCount = 0;
+        quad1Count = 0;
+        quad2Count = 0;
+        quad3Count = 0;
+        quad4Count = 0;
+        // clicks = [[0,0,0]];
+        randomClickStart.call(this);
+      }
+
+   }
+
+   function randomClickStart() {
+     let rand = (Math.ceil(Math.random()*4));
+
+     let randX = Math.random();
+     let randY = Math.random();
+       if (rand == 1) {
+         randX *= -1;
+       } else if (rand == 2) {
+         randX *= -1;
+         randY *= -1;
+       } else if (rand == 3) {
+         randY*= -1;
+       }
+
+     clicks = [[0, 1, 0]];
+   }
+
+   function addQuadrant(x, y) {
+     if(x>300 && y>200) {
+       quad4Count++;
+     } else if (x>300 && y<=200) {
+       quad1Count++;
+     } else if (x<=300 && y>200) {
+       quad3Count++;
+     } else {
+       quad2Count++;
+     }
+   }
+
+   function adjustSubSynth() {
+    //  fundFreq /= shapes.length;
+
+     let freqMultiplier = 3000;
+
+     Pd.send("fundie", [fundFreq*freqMultiplier]);
+
+
+     //sort shapes by x val
+     for(var i =0; i< shapes.length; i++) {
+       let harm = "harm" +(10-i);
+       let amp = shapes[i][0] / 15;
+       if(amp>1) {
+         amp = 1;
+       }
+
+       amp*= 50;
+       Pd.send(harm, [amp])
+     }
+
+   }
+
+
+   drawCanvases([canvas1]);
+</script>
+</html>
